@@ -36,6 +36,35 @@ def set_learning_phase(value):
                          '0 or 1.')
     _LEARNING_PHASE = value
 
+def cast_to_floatx(x):
+    """Cast a Numpy array to the default Keras float type.
+
+    # Arguments
+        x: Numpy array.
+
+    # Returns
+        The same Numpy array, cast to its new type.
+
+    # Example
+    ```python
+        >>> from keras import backend as K
+        >>> K.floatx()
+        'float32'
+        >>> arr = numpy.array([1.0, 2.0], dtype='float64')
+        >>> arr.dtype
+        dtype('float64')
+        >>> new_arr = K.cast_to_floatx(arr)
+        >>> new_arr
+        array([ 1.,  2.], dtype=float32)
+        >>> new_arr.dtype
+        dtype('float32')
+    ```
+    """
+    x = np.asarray(x, dtype=_FLOATX)
+    if x.shape:
+        return x
+    else:
+        return x.tolist()
 
 # VARIABLE MANIPULATION
 def _typename(t):
@@ -88,11 +117,15 @@ def to_dense(tensor):
 
 
 class KerasSymbol(object):
-    def __init__(self, symbol):
+    def __init__(self, symbol, name=None):
         if not isinstance(symbol, mx.symbol.Symbol):
             raise TypeError
         self.symbol = symbol
         self._uses_learning_phase = False
+        if name is None:
+            self._name = symbol.name
+        else:
+            self._name = name
 
     def bind(self, data):
         self.tensor = data
@@ -107,7 +140,7 @@ class KerasSymbol(object):
 
     @property
     def name(self):
-        return self.symbol.name
+        return self._name
 
     @property
     def dtype(self):
@@ -131,6 +164,20 @@ class KerasSymbol(object):
             _, out_type, _ = self.symbol.infer_type()
             t = out_type[0]
             return _typename(t)
+
+    def __getitem__(self, in_slice):
+        begin = []
+        end = []
+        for i in in_slice:
+            if isinstance(i, int):
+                begin.append(i)
+                end.append(i+1)
+            else:
+                assert isinstance(i, slice)
+                assert i.step is None or i.step == 1
+                begin.append(i.start)
+                end.append(i.stop)
+        return KerasSymbol(mx.sym.slice(self.symbol, begin=tuple(begin), end=tuple(end)))
 
     def __abs__(self):
         return KerasSymbol(mx.sym.abs(self.symbol))
@@ -279,10 +326,10 @@ class KerasSymbolCompare(KerasSymbol):
         return self._left.name == self._right.name
 
 
-def KerasVariable(name, shape, dtype):
+def KerasVariable(name, shape, dtype, **kwargs):
     if dtype is None:
         dtype = floatx()
-    v = mx.sym.Variable(name, shape=shape, dtype=dtype)
+    v = mx.sym.Variable(name, shape=shape, dtype=dtype, **kwargs)
     ret = KerasSymbol(v)
     return ret
 
@@ -439,7 +486,7 @@ def int_shape(x):
     if s is None:
         return None
     else:
-        return tuple([i.__int__() for i in s])
+        return tuple(None if i == 0 else i for i in s)
 
 
 def ndim(x):
@@ -563,7 +610,7 @@ def zeros(shape, dtype=None, name=None):
     dtype = np.dtype(dtype)
     value = mx.nd.zeros(shape, dtype=dtype)
     if name is None:
-        name = _autogen_name('zeroinit')
+        name = _autogen_name('zerosinit')
     ret = KerasVariable(name, value.shape, value.dtype)
     ret.bind(value)
     return ret
@@ -595,7 +642,7 @@ def ones(shape, dtype=None, name=None):
     dtype = np.dtype(dtype)
     value = mx.nd.ones(shape, dtype=dtype)
     if name is None:
-        name = _autogen_name('oneinit')
+        name = _autogen_name('onesinit')
     ret = KerasVariable(name, value.shape, value.dtype)
     ret.bind(value)
     return ret
@@ -650,12 +697,10 @@ def zeros_like(x, name=None):
                [ 0.,  0.,  0.]], dtype=float32)
     ```
     """
-    value = mx.nd.zeros(shape(x), dtype=dtype(x))
     if name is None:
         name = _autogen_name('zerolikeinit')
-    ret = KerasVariable(name, shape(x), dtype(x))
-    ret.bind(value)
-    return ret
+    y = mx._symbol_internal._zeros(dtype=dtype(x))
+    return KerasSymbol(mx._symbol_internal._identity_with_attr_like_rhs(y, x.symbol), name=name)
 
 
 def ones_like(x, name=None):
@@ -678,12 +723,10 @@ def ones_like(x, name=None):
                [ 1.,  1.,  1.]], dtype=float32)
     ```
     """
-    value = mx.nd.ones(shape(x), dtype(x))
     if name is None:
         name = _autogen_name('zerolikeinit')
-    ret = KerasVariable(name, shape(x), dtype(x))
-    ret.bind(value)
-    return ret
+    y = mx._symbol_internal._ones(dtype=dtype(x))
+    return KerasSymbol(mx._symbol_internal._identity_with_attr_like_rhs(y, x.symbol), name=name)
 
 
 def random_uniform_variable(shape, low, high, dtype=None,
@@ -889,7 +932,13 @@ def dot(x, y):
         (2, 4, 5)
     ```
     """
-    return KerasSymbol(mx.sym.dot(lhs=x.symbol, rhs=y.symbol))
+    if ndim(y) > 2:
+        axis = list(range(ndim(y)))
+        axis = [axis.pop(-2)] + axis
+        y = mx.sym.transpose(y.symbol, axes=axis)
+    else:
+        y = y.symbol
+    return KerasSymbol(mx.sym.dot(lhs=x.symbol, rhs=y))
 
 
 def batch_dot(x, y, axes=None):
@@ -1015,7 +1064,9 @@ def gather(reference, indices):
     # Returns
         A tensor of same type as `reference`.
     """
-    raise NotImplementedError
+    assert ndim(reference) == 2
+    indices = mx.sym.Cast(indices.symbol, dtype=reference.dtype)
+    return KerasSymbol(mx.sym.take(reference.symbol, indices))
 
 
 # ELEMENT-WISE OPERATIONS
@@ -1217,7 +1268,7 @@ def all(x, axis=None, keepdims=False):
         x = x.symbol
     abs = mx.sym.abs(data=x)
     min = mx.sym.min_axis(data=abs, axis=axis, keepdims=keepdims)
-    return KerasSymbol(mx.sym.broadcast_greater(min, 0))
+    return KerasSymbol(min > 0)
 
 
 def argmax(x, axis=-1):
@@ -1365,27 +1416,42 @@ def clip(x, min_value, max_value):
 
 
 def equal(x, y):
+    scalar = False
     if isinstance(x, KerasSymbol):
         x = x.symbol
+        scalar = True
     if isinstance(y, KerasSymbol):
         y = y.symbol
-    return KerasSymbol(mx.sym.broadcast_equal(lhs=x, rhs=y))
+        scalar = True
+    if scalar:
+        return KerasSymbol(mx.sym.Cast(x == y, dtype='uint8'))
+    return KerasSymbol(mx.sym.Cast(mx.sym.broadcast_equal(lhs=x, rhs=y), dtype='uint8'))
 
 
 def not_equal(x, y):
+    scalar = False
+    if isinstance(x, KerasSymbol):
+        x = x.symbol
+        scalar = True
     if isinstance(y, KerasSymbol):
         y = y.symbol
-    return KerasSymbol(
-        x.symbol.__ne__(y))
+        scalar = True
+    if scalar:
+        return KerasSymbol(mx.sym.Cast(x != y, dtype='uint8'))
+    return KerasSymbol(mx.sym.Cast(mx.sym.broadcast_not_equal(lhs=x, rhs=y), dtype='uint8'))
 
 
 def greater(x, y):
-    """Element-wise truth value of (x > y).
-
-    # Returns
-        A bool tensor.
-    """
-    return KerasSymbol(x.symbol > y.symbol)
+    scalar = False
+    if isinstance(x, KerasSymbol):
+        x = x.symbol
+        scalar = True
+    if isinstance(y, KerasSymbol):
+        y = y.symbol
+        scalar = True
+    if scalar:
+        return KerasSymbol(mx.sym.Cast(x > y, dtype='uint8'))
+    return KerasSymbol(mx.sym.Cast(mx.sym.broadcast_greater(lhs=x, rhs=y), dtype='uint8'))
 
 
 def greater_equal(x, y):
@@ -1394,7 +1460,16 @@ def greater_equal(x, y):
     # Returns
         A bool tensor.
     """
-    return KerasSymbol(x.symbol >= y.symbol)
+    scalar = False
+    if isinstance(x, KerasSymbol):
+        x = x.symbol
+        scalar = True
+    if isinstance(y, KerasSymbol):
+        y = y.symbol
+        scalar = True
+    if scalar:
+        return KerasSymbol(mx.sym.Cast(x >= y, dtype='uint8'))
+    return KerasSymbol(mx.sym.Cast(mx.sym.broadcast_greater_equal(lhs=x, rhs=y), dtype='uint8'))
 
 
 def lesser(x, y):
@@ -1403,7 +1478,16 @@ def lesser(x, y):
     # Returns
         A bool tensor.
     """
-    return KerasSymbol(x.symbol < y.symbol)
+    scalar = False
+    if isinstance(x, KerasSymbol):
+        x = x.symbol
+        scalar = True
+    if isinstance(y, KerasSymbol):
+        y = y.symbol
+        scalar = True
+    if scalar:
+        return KerasSymbol(mx.sym.Cast(x < y, dtype='uint8'))
+    return KerasSymbol(mx.sym.Cast(mx.sym.broadcast_lesser(lhs=x, rhs=y), dtype='uint8'))
 
 
 def lesser_equal(x, y):
@@ -1412,7 +1496,16 @@ def lesser_equal(x, y):
     # Returns
         A bool tensor.
     """
-    return KerasSymbol(x.symbol <= y.symbol)
+    scalar = False
+    if isinstance(x, KerasSymbol):
+        x = x.symbol
+        scalar = True
+    if isinstance(y, KerasSymbol):
+        y = y.symbol
+        scalar = True
+    if scalar:
+        return KerasSymbol(mx.sym.Cast(x <= y, dtype='uint8'))
+    return KerasSymbol(mx.sym.Cast(mx.sym.broadcast_lesser_equal(lhs=x, rhs=y), dtype='uint8'))
 
 
 def maximum(x, y):
@@ -1612,7 +1705,9 @@ def repeat(x, n):
     # Returns
         A tensor.
     """
-    raise NotImplementedError
+    x = mx.sym.expand_dims(x.symbol, axis=1)
+    x = mx.sym.repeat(x, repeats=n, axis=1)
+    return KerasSymbol(x)
 
 
 def arange(start, stop=None, step=1, dtype='int32'):
@@ -1640,7 +1735,7 @@ def tile(x, n):
     # Returns
         A tiled tensor.
     """
-    raise NotImplementedError
+    return KerasSymbol(mx.sym.tile(x.symbol, reps=n))
 
 
 def flatten(x):
@@ -1671,7 +1766,7 @@ def expand_dims(x, dim=-1):
         A tensor with expended dimensions.
     """
     if dim < 0:
-        dim %= len(x.get_shape())
+        dim %= len(x.get_shape())+1
     if isinstance(x, KerasSymbol):
         shape = list(x.get_shape())
         x = x.symbol
@@ -2016,7 +2111,35 @@ def rnn(step_function, inputs, initial_states,
             new_states: list of tensors, latest states returned by
                 the step function, of shape `(samples, ...)`.
     """
-    raise NotImplementedError
+    dshape = inputs.get_shape()
+    dtype = inputs.get_type()
+    inputs = mx.sym.SliceChannel(inputs.symbol, num_outputs=dshape[1], squeeze_axis=1)
+    inputs = [s for s in inputs]
+    if mask is not None:
+        if mask.dtype != dtype:
+            mask = KerasSymbol(mx.sym.Cast(mask.symbol, dtype=dtype))
+        masks = mx.sym.SliceChannel(mask.symbol, num_outputs=dshape[1], squeeze_axis=1)
+        masks = [KerasSymbol(s) for s in masks]
+    else:
+        masks = [None for _ in inputs]
+    if go_backwards:
+        inputs.reverse()
+    states = initial_states
+    outputs = []
+    for i, m in zip(inputs, masks):
+        output, new_states = step_function(KerasSymbol(i), states + constants)
+        if m is not None:
+            next_states = []
+            for s, ns in zip(states, new_states):
+                bm = mx.sym.Reshape(m.symbol, shape=m.get_shape()+(1,)*(ndim(s)-ndim(m)))
+                bm = mx.sym.broadcast_to(bm, shape=s.get_shape())
+                next_states.append(KerasSymbol((bm==0)*s.symbol + (bm!=0)*ns.symbol))
+            new_states = next_states
+        states = new_states
+        outputs.append(mx.sym.expand_dims(output.symbol, axis=1))
+    outputs = mx.sym.Concat(*outputs, dim=1)
+    return output, KerasSymbol(outputs), states
+
 
 
 def switch(condition, then_expression, else_expression):

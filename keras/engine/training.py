@@ -1803,13 +1803,21 @@ if K.backend() == 'mxnet':
             self._label_names = [x.name for x in self.targets + self.sample_weights]
             self._num_data = len(self._data_names)
             self._num_label = len(self._label_names)
+
             self._train_sym = K.group(
                 [K.make_loss(self.total_loss)] + [K.stop_gradient(x) for x in self.metrics_tensors]).symbol
             self._pred_sym = K.group(self.outputs).symbol
-            self._param_names = [n for n in self._train_sym.list_arguments()
+
+            self._arg_names = [n for n in self._train_sym.list_arguments()
                                  if n not in self._data_names + self._label_names]
+            self._aux_names = self._train_sym.list_auxiliary_states()
             trainable_weights = set([x.name for x in self.trainable_weights])
-            self._fixed_weights = [x for x in self._param_names if x not in trainable_weights]
+            self._fixed_weights = [x for x in self._arg_names if x not in trainable_weights]
+            self._args = {x: K.mxnet_backend._bind_values[x] for x in self._arg_names}
+            self._auxs = {x: K.mxnet_backend._bind_values[x] for x in self._aux_names}
+            self._weights_dirty = False
+            self._kvstore = kvstore
+
             self._train_mod = K.mx.mod.Module(
                 symbol=self._train_sym, data_names=self._data_names,
                 label_names=self._label_names, context=self._context,
@@ -1818,10 +1826,6 @@ if K.backend() == 'mxnet':
                 symbol=self._pred_sym, data_names=self._data_names,
                 label_names=None, context=self._context,
                 fixed_param_names=self._fixed_weights)
-            self._aux_names = self._train_sym.list_auxiliary_states()
-            self._weights = {x.name: x for x in self.trainable_weights + self.non_trainable_weights}
-            self._weights_dirty = False
-            self._kvstore = kvstore
             K.set_model(self)
 
         def _adjust_module(self, mod, inputs, for_training):
@@ -1872,10 +1876,10 @@ if K.backend() == 'mxnet':
         def _sync_weights(self):
             if self._weights_dirty:
                 args, auxs = self._train_mod.get_params()
-                for name in self._param_names:
-                    self._weights[name].tensor[:] = args[name]
+                for name in self._arg_names:
+                    self._args[name][:] = args[name]
                 for name in self._aux_names:
-                    self._weights[name].tensor[:] = auxs[name]
+                    self._auxs[name][:] = auxs[name]
                 self._weights_dirty = False
 
         def _set_weights(self, mod=None):
@@ -1889,9 +1893,7 @@ if K.backend() == 'mxnet':
                 return
 
             if mod.binded:
-                args = {name: self._weights[name].tensor for name in self._param_names if name in self._weights}
-                auxs = {name: self._weights[name].tensor for name in self._aux_names if name in self._weights}
-                mod.set_params(args, auxs, allow_missing=True)
+                mod.set_params(self._args, self._auxs, allow_missing=True)
 
         def _make_test_function(self):
             def test_function(inputs):

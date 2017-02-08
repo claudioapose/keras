@@ -172,4 +172,5 @@ def test_from_config(layer_class):
 
 
 if __name__ == '__main__':
+    #test_dynamic_behavior(recurrent.SimpleRNN)
     pytest.main([__file__])

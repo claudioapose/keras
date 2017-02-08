@@ -120,7 +120,6 @@ def test_sequential():
     model.train_on_batch(X_train[:32], y_train[:32])
 
     loss = model.evaluate(X_test, y_test)
-
     prediction = model.predict_generator(data_generator(X_test, y_test), X_test.shape[0], max_q_size=2)
     gen_loss = model.evaluate_generator(data_generator(X_test, y_test, 50), X_test.shape[0], max_q_size=2)
     pred_loss = K.eval(K.mean(objectives.get(model.loss)(K.variable(y_test), K.variable(prediction))))

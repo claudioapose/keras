@@ -55,6 +55,7 @@ def test_merge():
                    mode=lambda tup: K.concatenate([tup[0], tup[1]]),
                    output_shape=lambda tup: tup[0][:-1] + (tup[0][-1] + tup[1][-1],))
     model = Model([input_a, input_b], merged)
+    model.compile('rmsprop', 'mse')
     expected_output_shape = model.get_output_shape_for(input_shapes)
     actual_output_shape = model.predict(inputs).shape
     assert expected_output_shape == actual_output_shape
@@ -78,6 +79,7 @@ def test_merge():
                    mode=fn_mode,
                    output_shape=fn_output_shape)
     model = Model([input_a, input_b], merged)
+    model.compile('rmsprop', 'mse')
     expected_output_shape = model.get_output_shape_for(input_shapes)
     actual_output_shape = model.predict(inputs).shape
     assert expected_output_shape == actual_output_shape
@@ -101,6 +103,7 @@ def test_merge():
     b = Masking()(input_b)
     merged = merge([a, b], mode=fn_mode, output_shape=fn_output_shape, output_mask=fn_output_mask)
     model = Model([input_a, input_b], merged)
+    model.compile('rmsprop', 'mse')
     expected_output_shape = model.get_output_shape_for(input_shapes)
     actual_output_shape = model.predict(inputs).shape
     assert expected_output_shape == actual_output_shape
@@ -124,6 +127,7 @@ def test_merge():
                    output_shape=lambda tup: (tup[0][0], tup[0][1] + tup[1][1]) + tup[0][2:],
                    output_mask=lambda tup: K.concatenate([tup[0], tup[1]]))
     model = Model([input_a, input_b], merged)
+    model.compile('rmsprop', 'mse')
     expected_output_shape = model.get_output_shape_for(input_shapes)
     actual_output_shape = model.predict(inputs).shape
     assert expected_output_shape == actual_output_shape
@@ -147,10 +151,12 @@ def test_merge():
     input_b = Input(shape=input_shapes[1][1:])
     merged = merge([input_a, input_b], mode=fn_mode, output_shape=lambda s: s[0], arguments={'a': 0.7, 'b': 0.3})
     model = Model([input_a, input_b], merged)
+    model.compile('rmsprop', 'mse')
     output = model.predict(inputs)
 
     config = model.get_config()
     model = Model.from_config(config)
+    model.compile('rmsprop', 'mse')
 
     assert np.all(model.predict(inputs) == output)
 

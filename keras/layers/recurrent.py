@@ -216,7 +216,7 @@ class Recurrent(Layer):
         # note that the .build() method of subclasses MUST define
         # self.input_spec with a complete input shape.
         input_shape = K.int_shape(x)
-        if self.unroll and input_shape[1] is None:
+        if (self.unroll or K.backend() == 'mxnet') and input_shape[1] is None:
             raise ValueError('Cannot unroll a RNN if the '
                              'time dimension is undefined. \n'
                              '- If using a Sequential model, '
