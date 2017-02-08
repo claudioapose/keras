@@ -5,6 +5,7 @@ import random
 from keras.datasets import cifar10, cifar100, reuters, imdb, mnist
 
 
+@pytest.mark.skip(reason="too slow to do download")
 def test_cifar():
     # only run data download tests 20% of the time
     # to speed up frequent testing
@@ -15,6 +16,7 @@ def test_cifar():
         (X_train, y_train), (X_test, y_test) = cifar100.load_data('coarse')
 
 
+@pytest.mark.skip(reason="too slow to do download")
 def test_reuters():
     # only run data download tests 20% of the time
     # to speed up frequent testing
@@ -32,6 +34,7 @@ def test_mnist():
         (X_train, y_train), (X_test, y_test) = mnist.load_data()
 
 
+@pytest.mark.skip(reason="too slow to do download")
 def test_imdb():
     # only run data download tests 20% of the time
     # to speed up frequent testing

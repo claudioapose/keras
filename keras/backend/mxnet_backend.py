@@ -63,27 +63,6 @@ def is_sparse(tensor):
     return False
 
 
-def _convert_string_dtype(dtype):
-    if dtype == 'float16':
-        return np.float16
-    if dtype == 'float32':
-        return np.float32
-    elif dtype == 'float64':
-        return np.float64
-    elif dtype == 'int16':
-        return np.int16
-    elif dtype == 'int32':
-        return np.int32
-    elif dtype == 'int64':
-        return np.int64
-    elif dtype == 'uint8':
-        return np.int8
-    elif dtype == 'uint16':
-        return np.uint16
-    else:
-        raise ValueError('Unsupported dtype:', dtype)
-
-
 def to_dense(tensor):
     """Converts a sparse tensor into a dense tensor
     and returns it.
@@ -228,83 +207,53 @@ class KerasSymbol(object):
     #                 lhs=self.symbol,
     #                 rhs=other.symbol), self, other)
 
-    # def __gt__(self, other):
-    #     if isinstance(other, Number):
-    #         return KerasSymbol(self.symbol > other)
-    #     else:
-    #         return KerasSymbol(
-    #             mx.sym.broadcast_greater(
-    #                 lhs=self.symbol,
-    #                 rhs=other.symbol))
+    def __gt__(self, other):
+         if isinstance(other, Number):
+             return KerasSymbol(self.symbol > other)
+         else:
+             return KerasSymbol(
+                 mx.sym.broadcast_greater(
+                     lhs=self.symbol,
+                     rhs=other.symbol))
 
-    # def __ge__(self, other):
-    #     if isinstance(other, Number):
-    #         return KerasSymbol(self.symbol >= other)
-    #     else:
-    #         return KerasSymbol(
-    #             mx.sym.broadcast_greater_equal(
-    #                 lhs=self.symbol,
-    #                 rhs=other.symbol))
+    def __ge__(self, other):
+         if isinstance(other, Number):
+             return KerasSymbol(self.symbol >= other)
+         else:
+             return KerasSymbol(
+                 mx.sym.broadcast_greater_equal(
+                     lhs=self.symbol,
+                     rhs=other.symbol))
 
-    # def __lt__(self, other):
-    #     if isinstance(other, Number):
-    #         return KerasSymbol(
-    #             self.symbol < other)
-    #     else:
-    #         return KerasSymbol(
-    #             mx.sym.broadcast_lesser(
-    #                 lhs=self.symbol,
-    #                 rhs=other.symbol))
+    def __lt__(self, other):
+         if isinstance(other, Number):
+             return KerasSymbol(
+                 self.symbol < other)
+         else:
+             return KerasSymbol(
+                 mx.sym.broadcast_lesser(
+                    lhs=self.symbol,
+                     rhs=other.symbol))
 
-    # def __le__(self, other):
-    #     if isinstance(other, Number):
-    #         return KerasSymbol(
-    #             self.symbol <= other)
-    #     else:
-    #         return KerasSymbol(
-    #             mx.sym.broadcast_lesser_equal(
-    #                 lhs=self.symbol,
-    #                 rhs=other.symbol))
+    def __le__(self, other):
+         if isinstance(other, Number):
+             return KerasSymbol(
+                 self.symbol <= other)
+         else:
+             return KerasSymbol(
+                 mx.sym.broadcast_lesser_equal(
+                     lhs=self.symbol,
+                     rhs=other.symbol))
 
-    # def __gt__(self, other):
-    #     if isinstance(other, Number):
-    #         return KerasSymbol(
-    #             self.symbol > other)
-    #     else:
-    #         return KerasSymbol(
-    #             mx.sym.broadcast_greater(
-    #                 lhs=self.symbol,
-    #                 rhs=other.symbol))
-
-    # def __ge__(self, other):
-    #     if isinstance(other, Number):
-    #         return KerasSymbol(
-    #             self.symbol >= other)
-    #     else:
-    #         return KerasSymbol(
-    #             mx.sym.broadcast_greater_equal(
-    #                 lhs=self.symbol,
-    #                 rhs=other.symbol))
-
-    # def __lt__(self, other):
-    #     if isinstance(other, Number):
-    #         return KerasSymbol(
-    #             self.symbol < other)
-    #     else:
-    #         return KerasSymbol(
-    #             mx.sym.broadcast_lesser(
-    #                 lhs=self.symbol,
-    #                 rhs=other.symbol))
-
-    # def __le__(self, other):
-    #     if isinstance(other, Number):
-    #         return KerasSymbol(
-    #             self.symbol <= other)
-    #     else:
-    #         return KerasSymbol(
-    #             mx.sym.broadcast_lesser_equal(
-    #                 lhs=self.symbol,
-    #                 rhs=other.symbol))
+    def __gt__(self, other):
+         if isinstance(other, Number):
+             return KerasSymbol(
+                 self.symbol > other)
+         else:
+             return KerasSymbol(
+                 mx.sym.broadcast_greater(
+                     lhs=self.symbol,
+                     rhs=other.symbol))
 
     def __pow__(self, power, modulo=None):
         return KerasSymbol(self.symbol.__pow__(power))
@@ -373,7 +322,7 @@ def variable(value, dtype=None, name=None):
         name = _autogen_name('variable')
     if dtype is None:
         dtype = floatx()
-    dtype = _convert_string_dtype(dtype)
+    dtype = np.dtype(dtype)
     if isinstance(value, Number):
         value = np.array([value])
     ndarray = mx.nd.array(value, dtype=dtype)
@@ -414,7 +363,7 @@ def placeholder(shape=None, ndim=None, dtype=None, sparse=False, name=None):
     """
     if dtype is None:
         dtype = floatx()
-    dtype = _convert_string_dtype(dtype)
+    dtype = np.dtype(dtype)
     if name is None:
         name = _autogen_name('placeholder')
     if not shape:
@@ -611,7 +560,7 @@ def zeros(shape, dtype=None, name=None):
     """
     if dtype is None:
         dtype = floatx()
-    dtype = _convert_string_dtype(dtype)
+    dtype = np.dtype(dtype)
     value = mx.nd.zeros(shape, dtype=dtype)
     if name is None:
         name = _autogen_name('zeroinit')
@@ -643,7 +592,7 @@ def ones(shape, dtype=None, name=None):
     """
     if dtype is None:
         dtype = floatx()
-    dtype = _convert_string_dtype(dtype)
+    dtype = np.dtype(dtype)
     value = mx.nd.ones(shape, dtype=dtype)
     if name is None:
         name = _autogen_name('oneinit')
@@ -766,7 +715,7 @@ def random_uniform_variable(shape, low, high, dtype=None,
     """
     if dtype is None:
         dtype = floatx()
-    dtype = _convert_string_dtype(dtype)
+    dtype = np.dtype(dtype)
     value = mx.random.uniform(low=low, high=high, dtype='float32', shape=shape)
     if dtype != np.float32:
         value = mx.nd.Cast(value, dtype=dtype)
@@ -805,7 +754,7 @@ def random_normal_variable(shape, mean, scale, dtype=None,
     """
     if dtype is None:
         dtype = floatx()
-    dtype = _convert_string_dtype(dtype)
+    dtype = np.dtype(dtype)
     value = mx.random.normal(loc=mean, scale=scale, dtype='float32', shape=shape)
     if dtype != np.float32:
         value = mx.nd.Cast(value, dtype=dtype)
@@ -1613,7 +1562,7 @@ def permute_dimensions(x, pattern):
     # Returns
         A tensor.
     """
-    raise KerasSymbol(mx.sym.transpose(x.symbol, axes=pattern))
+    return KerasSymbol(mx.sym.transpose(x.symbol, axes=pattern))
 
 
 def resize_images(X, height_factor, width_factor, dim_ordering):
@@ -2545,7 +2494,7 @@ def random_normal(shape, mean=0.0, std=1.0, dtype=None, seed=None):
     """
     if dtype is None:
         dtype = floatx()
-    dtype = _convert_string_dtype(dtype)
+    dtype = np.dtype(dtype)
     name = _autogen_name('normal')
     sym = mx.sym.normal(loc=mean, scale=scale, shape=shape, dtype='float32', name=name)
     if dtype != np.float32:
@@ -2571,7 +2520,7 @@ def random_uniform(shape, low=0.0, high=1.0, dtype=None, seed=None):
     """
     if dtype is None:
         dtype = floatx()
-    dtype = _convert_string_dtype(dtype)
+    dtype = np.dtype(dtype)
     name = _autogen_name('uniform')
     sym = mx.sym.uniform(low=low, high=high, shape=shape, dtype='float32', name=name)
     if dtype != np.float32:

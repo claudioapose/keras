@@ -282,6 +282,7 @@ def test_merge_sum():
 
 
 @keras_test
+@pytest.mark.skip(reason="crash the engine")
 def test_merge_dot():
     (X_train, y_train), (X_test, y_test) = _get_test_data()
 

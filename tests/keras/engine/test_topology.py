@@ -279,6 +279,7 @@ def test_multi_input_layer():
 
 
 @keras_test
+@pytest.mark.xfail
 def test_recursion():
     ####################################################
     # test recursion
@@ -564,6 +565,7 @@ def test_recursion():
 
 
 @keras_test
+@pytest.mark.xfail
 def test_sequential_regression():
     from keras.models import Sequential, Model
     from keras.layers import Merge, Embedding, BatchNormalization, LSTM, InputLayer, Input

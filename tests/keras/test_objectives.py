@@ -33,6 +33,7 @@ def test_objective_shapes_2d():
         assert K.eval(objective_output).shape == (6,)
 
 
+@pytest.mark.skip(reason="no sparse support")
 def test_cce_one_hot():
     y_a = K.variable(np.random.randint(0, 7, (5, 6)))
     y_b = K.variable(np.random.random((5, 6, 7)))

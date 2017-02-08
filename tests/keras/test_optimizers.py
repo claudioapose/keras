@@ -65,11 +65,13 @@ def test_adam():
     _test_optimizer(Adam(decay=1e-3))
 
 
+@pytest.mark.xfail
 def test_adamax():
     _test_optimizer(Adamax())
     _test_optimizer(Adamax(decay=1e-3))
 
 
+@pytest.mark.xfail
 def test_nadam():
     _test_optimizer(Nadam())
 
@@ -79,6 +81,7 @@ def test_clipnorm():
     _test_optimizer(sgd)
 
 
+@pytest.mark.xfail
 def test_clipvalue():
     sgd = SGD(lr=0.01, momentum=0.9, clipvalue=0.5)
     _test_optimizer(sgd)

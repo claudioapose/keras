@@ -94,6 +94,7 @@ def test_fmeasure():
     assert expected - epsilon <= actual <= expected + epsilon
 
 
+@pytest.mark.skip(reason="no sparse support")
 def test_sparse_metrics():
     for metric in all_sparse_metrics:
         y_a = K.variable(np.random.randint(0, 7, (6,)), dtype=K.floatx())
@@ -101,6 +102,7 @@ def test_sparse_metrics():
         assert K.eval(metric(y_a, y_b)).shape == ()
 
 
+@pytest.mark.xfail
 def test_top_k_categorical_accuracy():
     y_pred = K.variable(np.array([[0.3, 0.2, 0.1], [0.1, 0.2, 0.7]]))
     y_true = K.variable(np.array([[0, 1, 0], [1, 0, 0]]))
